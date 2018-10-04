@@ -32,6 +32,7 @@
 #else
 #include <GL/gl.h>
 #endif
+#include "shaders/GUIShader.h"
 #else
 #include <d3d11.h>
 #endif
@@ -40,6 +41,8 @@
 #include "timer.h"
 
 #include <time.h>
+
+#define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
 CRenderD3D gRender;
 
@@ -210,6 +213,8 @@ void CRenderD3D::Init(void* pContext)
   pDevice->CreateBuffer(&vbDesc, nullptr, &m_pVBuffer);
   pDevice->CreatePixelShader(PixelShader, sizeof(PixelShader), nullptr, &m_pPShader);
   SAFE_RELEASE(pDevice);
+#else
+  m_shader = new CGUIShader("vert.glsl", "frag.glsl");
 #endif
 }
 
@@ -227,6 +232,10 @@ void CRenderD3D::InvalidateDevice()
 #ifdef WIN32
   SAFE_RELEASE(m_pPShader);
   SAFE_RELEASE(m_pVBuffer);
+#else
+  m_shader->Free();
+  delete m_shader;
+  m_shader = nullptr;
 #endif
 }
 
@@ -249,14 +258,67 @@ bool CRenderD3D::Draw()
   if (m_NumLines == 0)
     return true;
 #ifndef WIN32
-  glBegin(GL_LINES);
+  m_shader->PushMatrix();
+  m_shader->Translatef(0.0,-0.5,0.0);
+  m_shader->Enable();
+  struct PackedVertex
+  {
+    GLfloat x, y, z;
+    GLfloat r, g, b;
+  } vertex[m_NumLines*2];
+
+  GLubyte idx[m_NumLines*2];
+
+  for (size_t j = 0; j < m_NumLines * 2; ++j)
+  {
+    vertex[j].x = m_VertBuf[j].x;
+    vertex[j].y = m_VertBuf[j].y;
+    vertex[j].z = 0.0;
+    vertex[j].r = m_VertBuf[j].col[0];
+    vertex[j].g = m_VertBuf[j].col[1];
+    vertex[j].b = m_VertBuf[j].col[2];
+    idx[j] = j;
+  }
+
+  GLint posLoc = m_shader->GetPosLoc();
+  GLint colLoc = m_shader->GetColLoc();
+
+  GLuint vertexVBO;
+  GLuint indexVBO;
+
+  glGenBuffers(1, &vertexVBO);
+  glBindBuffer(GL_ARRAY_BUFFER, vertexVBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(PackedVertex)*m_NumLines*2, &vertex[0], GL_STATIC_DRAW);
+
+  glVertexAttribPointer(posLoc, 3, GL_FLOAT, 0, sizeof(PackedVertex), BUFFER_OFFSET(offsetof(PackedVertex, x)));
+  glVertexAttribPointer(colLoc, 3, GL_FLOAT, 0, sizeof(PackedVertex), BUFFER_OFFSET(offsetof(PackedVertex, r)));
+
+  glEnableVertexAttribArray(posLoc);
+  glEnableVertexAttribArray(colLoc);
+
+  glGenBuffers(1, &indexVBO);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexVBO);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLubyte)*2*m_NumLines, idx, GL_STATIC_DRAW);
+  glDrawElements(GL_LINES, m_NumLines*2, GL_UNSIGNED_BYTE, 0);
+
+  glDisableVertexAttribArray(posLoc);
+  glDisableVertexAttribArray(colLoc);
+
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glDeleteBuffers(1, &vertexVBO);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+  glDeleteBuffers(1, &indexVBO);
+
+  /*glBegin(GL_LINES);
   for (size_t j = 0; j < m_NumLines * 2; ++j)
   {
     glColor4f(m_VertBuf[j].col[0], m_VertBuf[j].col[1], m_VertBuf[j].col[2], m_VertBuf[j].col[3]);
     glVertex2f(m_VertBuf[j].x, m_VertBuf[j].y);
   }
-  glEnd();
+  glEnd();*/
   m_Verts = m_VertBuf;
+  m_shader->Disable();
+  m_shader->PopMatrix();
 #else
   m_pContext->Unmap(m_pVBuffer, 0);
   m_pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);

@@ -12,6 +12,8 @@
 #include "types.h"
 #ifdef WIN32
 #include <d3d11.h>
+#else
+#include "shaders/GUIShader.h"
 #endif
 /***************************** D E F I N E S *******************************/
 
@@ -70,6 +72,7 @@ public:
   TRenderVertex*       m_Verts;
 #ifndef WIN32
   TRenderVertex*       m_VertBuf;
+  CGUIShader* m_shader;
 #else
   ID3D11DeviceContext* m_pContext;
   ID3D11Buffer*        m_pVBuffer;

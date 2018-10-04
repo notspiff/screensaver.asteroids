@@ -19,7 +19,10 @@ set(ASTEROIDS_SOURCES src/asteroid.cpp
                       src/Asteroids.cpp
                       src/bullet.cpp
                       src/main.cpp
-                      src/ship.cpp)
+                      src/ship.cpp
+                      src/shaders/GUIShader.cpp
+                      src/shaders/Matrix.cpp
+                      src/shaders/Shader.cpp)
 
 set(ASTEROIDS_HEADERS src/asteroid.h
                       src/Asteroids.h
